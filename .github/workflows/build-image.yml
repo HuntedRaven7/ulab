@@ -44,7 +44,9 @@ jobs:
         uses: redhat-actions/buildah-build@v2
         with:
           image: ${{ env.IMAGE_NAME }}
-          tags: ${{ steps.meta.outputs.version }}
+          tags: |
+            ${{ steps.meta.outputs.version }}
+            sha-${{ github.sha }}
           archs: amd64
           containerfiles: |
             ./Containerfile
