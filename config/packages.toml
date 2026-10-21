@@ -80,10 +80,7 @@ packages = [
     "iwlwifi-dvm-firmware",
     "iwlwifi-mvm-firmware",
     "iwlwifi-mld-firmware",
-    # Marvell libertas Wi-Fi firmware. Not in linux-firmware's weak-deps set.
-    "libertas-usb8388-firmware",
     # Processor microcode halves, matching utah's [hardware] parity set.
-    "amd-ucode",
     "microcode_ctl",
 ]
 
