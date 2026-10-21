@@ -62,18 +62,33 @@ ARG GIT_COMMIT=unknown
 #      leftovers, clean dnf state.
 #   5. ulab-verify: fail the layer loudly when anything structural is
 #      missing (transfer files, keyring, ujust wiring, updex CLI).
+#
+# Copy notes:
+#   * /usr and /etc come from a read-only bind mount, so plain `cp` hits
+#     ETXTBSY on binaries the build shell is running ("Text file busy").
+#     --remove-destination unlinks before writing, which sidesteps it.
+#   * /etc is merged file-by-file: the builder's /etc/hosts is a bind mount
+#     of the container's own, and overwriting it in place is what produced
+#     the busy-file failure there.
+#   * The base image ships /usr/local as a symlink to ../var/usrlocal, so a
+#     single `cp .../usr/. /usr/` merge cannot carry a real /usr/local
+#     directory. Each top-level tree is copied separately instead, and
+#     /usr/local is written through the symlink to its real target.
 RUN --mount=type=bind,from=packages-builder,source=/,target=/tmp/ulab-packages,ro \
     --mount=type=bind,from=keyring,source=/out,target=/tmp/ulab-keyring,ro \
     --mount=type=bind,from=inputs,source=/,target=/tmp/ulab-inputs,ro \
-    cp -a /tmp/ulab-packages/usr/. /usr/ && \
-    cp -a /tmp/ulab-packages/etc/. /etc/ && \
+    cp -a --remove-destination /tmp/ulab-packages/usr/. /usr/ && \
+    cp -a /tmp/ulab-packages/etc/yum.repos.d/hummingbird.repo /etc/yum.repos.d/ && \
+    cp -a /tmp/ulab-packages/etc/pki/rpm-gpg/RPM-GPG-KEY-redhat-release-2 /etc/pki/rpm-gpg/ && \
     rm -f /etc/yum.repos.d/fedora-44.repo /etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-44-primary && \
     install -D -m 0644 /tmp/ulab-keyring/import-pubring.gpg /usr/lib/systemd/import-pubring.gpg && \
     install -D -m 0644 /tmp/ulab-keyring/import-pubring.gpg /usr/lib/systemd/import-pubring.pgp && \
-    cp -a /tmp/ulab-inputs/tmp/ulab-assets/usr/. /usr/ && \
+    cp -a /tmp/ulab-inputs/tmp/ulab-assets/usr/bin/. /usr/bin/ && \
+    cp -a /tmp/ulab-inputs/tmp/ulab-assets/usr/lib/. /usr/lib/ && \
+    cp -a /tmp/ulab-inputs/tmp/ulab-assets/usr/share/. /usr/share/ && \
+    cp -a /tmp/ulab-inputs/tmp/ulab-assets/usr/local/. /usr/local/ && \
     /tmp/ulab-inputs/tmp/ulab-scripts/finalize.sh && \
-    /usr/local/libexec/ulab-verify && \
-    rm -rf /tmp/ulab-packages /tmp/ulab-keyring /tmp/ulab-inputs
+    /usr/local/libexec/ulab-verify
 
 LABEL org.opencontainers.image.title="ulab" \
       org.opencontainers.image.description="A ucore-style Fedora Hummingbird server image with updex-managed Kubernetes sysexts (k3s, k0s, KubeStellar)." \

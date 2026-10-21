@@ -34,7 +34,7 @@ jobs:
             env="sysext/${name}/sysext.env"
             test -s "$transfer" || { echo "missing $transfer" >&2; exit 1; }
             test -s "$env" || { echo "missing $env" >&2; exit 1; }
-            src_path=$(awk '/^\[Source\]/,/^\[/{ if ($0 ~ /^Path=/) { split($0,a,"="); print a[2] } }' "$transfer")
+            src_path=$(awk '/^\[Source\]/{start=1;next} /^\[/{exit} start && /^Path=/{split($0,a,"=");print a[2]}' "$transfer")
             grep -q "^https://huntedraven7.github.io/ulab/ext/${name}/$" <<< "$src_path" || {
               echo "$transfer: Source.Path should be the ulab catalog for '$name', got: $src_path" >&2
               exit 1
