@@ -21,3 +21,6 @@ build/
 
 # CI-side test artifacts
 test-results/
+
+__pycache__/
+*.py[cod]
