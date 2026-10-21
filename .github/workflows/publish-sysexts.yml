@@ -1,0 +1,190 @@
+name: Publish sysext catalog
+
+# Builds every sysext, verifies pinned versions against upstream, appends
+# the new SHA256SUMS lines to the published catalog, re-signs the manifest
+# and publishes catalog + artifacts to GitHub Pages, which is the
+# url-file endpoint the shipped .transfer files consume:
+#   https://huntedraven7.github.io/ulab/ext/<name>/
+#
+# Requires:
+#   * Settings -> Pages -> Build and deployment -> Source: GitHub Actions
+#   * Secret ULAB_GPG_PRIVATE_KEY: the armored private key whose armored
+#     public half is committed as keys/ulab-sysext-public-key.asc, which
+#     the image bakes into /usr/lib/systemd/import-pubring.gpg.
+#
+# Retention policy: previously published artifacts stay in place; the
+# SHA256SUMS lists everything the store still carries, so upstream sysupdate
+# transfers keep resolving old on-disk versions.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "sysext/**"
+      - ".github/workflows/publish-sysexts.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: publish-sysexts
+  cancel-in-progress: false
+
+jobs:
+  verify-pins:
+    name: Verify pinned versions against upstream
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.build-matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve latest upstream tags
+        id: build-matrix
+        run: |
+          set -euo pipefail
+          json='{"include":['
+          first=1
+          failures=0
+          for name in k3s k0s kubestellar; do
+            repo=$(awk -F= '/^ULAB_SYSEXT_REPO=/ {gsub(/ /,"",$2); print $2}' "sysext/$name/sysext.env")
+            pinned=$(awk -F= '/^ULAB_PINNED_VERSION=/ {gsub(/ /,"",$2); print $2}' "sysext/$name/sysext.env")
+            latest=$(curl -fsSL "https://api.github.com/repos/$repo/releases/latest" | jq -r .tag_name)
+            latest=${latest#v}
+            if [ "$pinned" = "$latest" ]; then
+              echo "ok: $name pin $pinned matches upstream"
+            else
+              echo "::warning::sysext/$name: pinned $pinned, upstream $latest (build continues, update the pin soon)"
+            fi
+            [ "$first" = 1 ] && first=0 || json+=','
+            json+="{\"name\":\"$name\"}"
+          done
+          json+=']}'
+          echo "matrix=$json" >> "$GITHUB_OUTPUT"
+          exit $failures
+
+  build:
+    name: Build ${{ matrix.name }}
+    needs: verify-pins
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.verify-pins.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build tooling
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -yq squashfs-tools zstd attr gnupg
+
+      - name: Import signing key
+        env:
+          ULAB_GPG_PRIVATE_KEY: ${{ secrets.ULAB_GPG_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$ULAB_GPG_PRIVATE_KEY" || {
+            echo "FATAL: secret ULAB_GPG_PRIVATE_KEY is not configured" >&2
+            exit 1
+          }
+          echo "$ULAB_GPG_PRIVATE_KEY" | gpg --batch --import
+          keyid=$(gpg --list-secret-keys --with-colons | awk -F: '/^sec/ {print $5; exit}')
+          echo "ULAB_GPG_KEY_ID=$keyid" >> "$GITHUB_ENV"
+
+      - name: Build sysext
+        run: ./sysext/common/build-sysext.sh "$SYSEXT_NAME"
+        env:
+          SYSEXT_NAME: ${{ matrix.name }}
+
+      - name: Upload build outputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: sysext-${{ matrix.name }}
+          path: sysext/dist/${{ matrix.name }}/
+          if-no-files-found: error
+
+  publish:
+    name: Merge catalog + deploy Pages
+    needs: [verify-pins, build]
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      # The currently published catalog: retention source. On the first
+      # run there is no gh-pages branch yet; -uivalence is an empty base.
+      - name: Fetch published catalog
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: pages
+        continue-on-error: true
+
+      - name: Download build outputs
+        uses: actions/download-artifact@v4
+        with:
+          path: new/
+
+      - name: Merge artifacts and re-sign SHA256SUMS
+        env:
+          ULAB_GPG_PRIVATE_KEY: ${{ secrets.ULAB_GPG_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          echo "$ULAB_GPG_PRIVATE_KEY" | gpg --batch --import
+          keyid=$(gpg --list-secret-keys --with-colons | awk -F: '/^sec/ {print $5; exit}')
+
+          mkdir -p out
+          touch out/.nojekyll
+
+          # The catalog is per-sysext, matching each .transfer Source.Path:
+          #   https://huntedraven7.github.io/ulab/ext/<name>/SHA256SUMS(.gpg)
+          # with payload + manifest line layout relative to that directory.
+          # Retention: old lines for a name survive; new-vs-old dedupe
+          # happens on line content (hash *filename), not on name alone.
+          for name in k3s k0s kubestellar; do
+            mkdir -p "out/ext/$name"
+            touch "out/ext/$name/SHA256SUMS"
+            # 1. Retain previously published lines for this sysext.
+            if [ -f "pages/ext/$name/SHA256SUMS" ]; then
+              cat "pages/ext/$name/SHA256SUMS" >> "out/ext/$name/SHA256SUMS"
+            fi
+            # 2. Retain previously published artifacts for this sysext.
+            if [ -d "pages/ext/$name" ]; then
+              (cd "pages/ext/$name" && find . -type f \
+                  ! -name 'SHA256SUMS*' ! -name '.' -print) | while IFS= read -r f; do
+                f="${f#./}"
+                cp "pages/ext/$name/$f" "out/ext/$name/$f"
+              done
+            fi
+            # 3. Add new artifact + manifest line.
+            if [ -d "new/sysext-$name" ]; then
+              cp new/sysext-$name/${name}_*.raw.zst "out/ext/$name/" || true
+              if [ -f "new/sysext-$name/SHA256SUMS.new" ]; then
+                cat new/sysext-$name/SHA256SUMS.new >> "out/ext/$name/SHA256SUMS"
+              fi
+            fi
+          done
+          # De-duplicate lines (retained + rewritten pins can carry the
+          # same artifact twice) then verify every retained+new line
+          # against the actual files; the check doubles as retention
+          # garbage collection: dangling lines would fail here.
+          for name in k3s k0s kubestellar; do
+            dedupe=$(mktemp)
+            awk '!seen[$0]++' "out/ext/$name/SHA256SUMS" > "$dedupe"
+            mv "$dedupe" "out/ext/$name/SHA256SUMS"
+            (cd "out/ext/$name" && sha256sum --check --strict SHA256SUMS)
+            # Sign the sysext manifest.
+            gpg --batch --yes --local-user "$keyid" --detach-sign \
+                --output "out/ext/$name/SHA256SUMS.gpg" "out/ext/$name/SHA256SUMS"
+          done
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: out
+
+      - uses: actions/deploy-pages@v4

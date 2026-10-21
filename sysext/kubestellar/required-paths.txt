@@ -1,0 +1,9 @@
+# Structurally-required payload paths; the build fails if any is missing.
+/usr/bin/helm
+/usr/lib/kubestellar/bin/controller-manager
+/usr/lib/kubestellar/bin/ocm-transport-controller
+/usr/lib/kubestellar/bin/kflex-get-kubeconfig
+/usr/bin/kubestellar-controller-manager
+/usr/bin/kubestellar-ocm-transport-controller
+/usr/bin/kubestellar-kflex-get-kubeconfig
+/usr/lib/extension-release.d/extension-release.kubestellar

@@ -1,0 +1,30 @@
+# Fedora 44 is the Hummingbird buildroot pairing, not a runtime repository.
+# This repo exists so the image build can pull packages the Hummingbird
+# factory does not publish yet: firmware and hardware-driver tails that a
+# server image still needs (linux-firmware, the iwlwifi firmware family,
+# children of NetworkManager-wifi). It is enabled only while the package
+# transaction runs in the v4l2loopback / packages stages and is deleted
+# together with its GPG key before the runtime stage copies anything.
+#
+# builder-only: true
+[fedora-44]
+name=Fedora 44 - $basearch
+baseurl=https://dl.fedoraproject.org/pub/fedora/linux/releases/44/Everything/$basearch/os/
+enabled=1
+metadata_expire=6h
+repo_gpgcheck=0
+type=rpm
+gpgcheck=1
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-44-primary
+skip_if_unavailable=False
+
+[fedora-44-updates]
+name=Fedora 44 - $basearch - Updates
+baseurl=https://dl.fedoraproject.org/pub/fedora/linux/updates/44/Everything/$basearch/
+enabled=1
+metadata_expire=6h
+repo_gpgcheck=0
+type=rpm
+gpgcheck=1
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-44-primary
+skip_if_unavailable=False

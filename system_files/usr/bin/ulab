@@ -1,0 +1,36 @@
+#!/bin/bash
+# ulab CLI: non-interactive query points used by just recipes and by admins.
+#
+#   ulab info              - image + feature + merge summary
+#   ulab features          - updex feature table
+#   ulab merge-status      - systemd-sysext merge status
+#   ulab kubeconfig        - print the active kubeconfig path
+set -euo pipefail
+source /usr/lib/ujust/ujust.sh
+
+cmd="${1:-info}"
+shift || true
+
+case "$cmd" in
+    info)
+        echo "[ulab]"
+        sed 's/^/  /' /usr/share/ulab/build-info 2>/dev/null || true
+        echo "  sysext features:"
+        updex features list 2>/dev/null | sed 's/^/    /' | sed -n '1,8p' || true
+        echo "  merged extensions:"
+        systemd-sysext list 2>/dev/null | sed 's/^/    /' || true
+        ;;
+    features)
+        updex features list
+        ;;
+    merge-status)
+        systemd-sysext status
+        ;;
+    kubeconfig)
+        kubeconfig_path
+        ;;
+    *)
+        echo "unknown command: $cmd (info, features, merge-status, kubeconfig)" >&2
+        exit 64
+        ;;
+esac

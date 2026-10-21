@@ -1,0 +1,33 @@
+#!/bin/bash
+# ulab image verification, run at the end of the Containerfile layer and
+# available on the installed system to diagnose a broken update.
+# Fails loudly on structural gaps; prints nothing on success.
+set -euo pipefail
+
+fail() {
+    echo "ulab-verify: $*" >&2
+    exit 1
+}
+
+test -x /usr/bin/updex || fail "updex binary missing"
+test -x /usr/bin/just || fail "just binary missing"
+test -x /usr/bin/ujust || fail "ujust wrapper missing"
+test -x /usr/bin/ulab || fail "ulab CLI missing"
+test -s /usr/share/ulab/justfile || fail "ulab justfile missing"
+test -s /usr/lib/systemd/import-pubring.gpg || fail "sysext keyring missing"
+test -s /usr/lib/systemd/import-pubring.pgp || fail "sysext keyring .pgp missing"
+
+for feature in k3s k0s kubestellar; do
+    test -s "/usr/lib/sysupdate.${feature}.d/${feature}.transfer" \
+        || fail "${feature}.transfer missing"
+    test -s "/usr/lib/sysupdate.${feature}.d/${feature}.feature" \
+        || fail "${feature}.feature missing"
+done
+
+# Definition files parse: run updex's own component discovery as a parser.
+updex components >/dev/null 2>&1 || fail "updex components discovery failed"
+
+# The ujust tree is importable by just itself (parse-only).
+just --justfile /usr/share/ulab/justfile --list >/dev/null 2>&1 || fail "ulab justfile import failed"
+
+exit 0

@@ -1,0 +1,42 @@
+name: Validate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Invariants
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Shellcheck every shell script
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -yq shellcheck
+          ./tests/validate.sh
+
+      - name: Transfer files reference reachable catalogs
+        run: |
+          set -euo pipefail
+          # Every .transfer Source must point its Path into our published
+          # catalog and its MatchPatterns must match the builder's artifact
+          # naming exactly.
+          for name in k3s k0s kubestellar; do
+            transfer="system_files/usr/lib/sysupdate.${name}.d/${name}.transfer"
+            env="sysext/${name}/sysext.env"
+            test -s "$transfer" || { echo "missing $transfer" >&2; exit 1; }
+            test -s "$env" || { echo "missing $env" >&2; exit 1; }
+            src_path=$(awk '/^\[Source\]/,/^\[/{ if ($0 ~ /^Path=/) { split($0,a,"="); print a[2] } }' "$transfer")
+            grep -q "^https://huntedraven7.github.io/ulab/ext/${name}/$" <<< "$src_path" || {
+              echo "$transfer: Source.Path should be the ulab catalog for '$name', got: $src_path" >&2
+              exit 1
+            }
+          done

@@ -1,0 +1,12 @@
+# Pinned external artifacts for the image build. Values change together:
+# bump version + rpm + rpm_sha256 in one commit (renovate-able shape).
+
+[updex]
+# frostyard/updex CLI: manages the .transfer/.feature sysext definitions
+# shipped in /usr/lib/sysupdate.<name>.d/ and enforces the SHA256SUMS.gpg
+# signature policy against the keyring baked into
+# /usr/lib/systemd/import-pubring.gpg.
+version = "2.0.3"
+arch = "x86_64"
+rpm = "frostyard-updex-2.0.3-1.x86_64.rpm"
+rpm_sha256 = "fe8aa20865961bb5a11dbedca0f9652ddb99730733a60ac3aae109155589b68e"

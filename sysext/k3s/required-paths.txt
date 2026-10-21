@@ -1,0 +1,9 @@
+# Structurally-required payload paths; the build fails if any is missing.
+/usr/bin/k3s
+/usr/bin/kubectl
+/usr/bin/crictl
+/usr/lib/systemd/system/k3s.service
+/usr/lib/systemd/system/k3s-agent.service
+/usr/lib/systemd/system/multi-user.target.d/10-k3s.conf
+/usr/lib/systemd/system-preset/40-k3s.preset
+/usr/lib/extension-release.d/extension-release.k3s

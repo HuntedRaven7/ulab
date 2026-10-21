@@ -1,0 +1,9 @@
+#!/usr/bin/bash
+# ulab image, ujust wrapper.
+#
+# Same contract as ublue-os-just's /usr/bin/ujust: set the justfile once,
+# delegate everything else to just. ulab ships its own justfile tree
+# (/usr/share/ulab/) instead of editing anything in /usr/share/ublue-os/,
+# because the Hummingbird base carries no ublue theme hierarchy to lean on.
+
+JUST_JUSTFILE="/usr/share/ulab/justfile" /usr/bin/just "${@}"

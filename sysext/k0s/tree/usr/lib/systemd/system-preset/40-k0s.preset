@@ -1,0 +1,6 @@
+# Both units are preset-enabled; their Conditions select the role at start
+# time (controller unless /etc/default/k0s-worker exists, worker when it
+# does), so exactly one of the two ever runs on a given node, mirroring
+# the k3s sysext design.
+enable k0scontroller.service
+enable k0sworker.service

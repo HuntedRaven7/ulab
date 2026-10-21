@@ -1,0 +1,23 @@
+# ulab
+
+# sysext build outputs and staging trees
+sysext/dist/
+sysext/work/
+
+# private keys must never be committed anywhere in this repository.
+# keys/ carries exactly one file by design: the armored PUBLIC key
+# (keys/ulab-sysext-public-key.asc); binary GPG keyrings are built
+# artifacts, never repo content.
+*.gpg
+*.key
+!keys/*.asc
+
+# local build scratch
+/tmp/
+build/
+*.raw
+*.raw.zst
+*.dmg
+
+# CI-side test artifacts
+test-results/

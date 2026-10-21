@@ -1,0 +1,101 @@
+# ulab package manifest (TOML), consumed by scripts/install-packages.py.
+#
+# One dnf transaction resolves every name below before the runtime image
+# commits its layer. Structure mirrors utah's packages/utah.toml:
+#   [core]        the minimum server platform every ulab node walks in with
+#   [tooling]     image utilities shipped to users (ujust runtime)
+#   [networking]  the connectivity set Hummingbird does not publish
+#   [hardware]    device firmware the bootable base leaves out entirely
+#   [excluded]    packages removed from the base image (conflicts with image
+#                 content)
+#
+# Everything here resolves from public-hummingbird-x86_64-rpms
+# (packages/hummingbird.repo) except the names that ship only from the
+# Fedora 44 buildroot (packages/fedora-44.repo, builder-only): those are
+# just, linux-firmware, the iwlwifi firmware family, and microcode.
+
+[core]
+# The minimum a server needs to be administrable over the network.
+# openssh-server carries the standard sshd unit; nothing else here pulls a
+# GUI-shaping dependency, keeping the Hummingbird OS tree untouched.
+packages = [
+    "openssh-server",
+    "openssh-clients",
+    "sudo",
+    "ca-certificates",
+    "curl",
+    "wget",
+    "git",
+    "tar",
+    "unzip",
+    "bash-completion",
+    "tmux",
+    "logrotate",
+    # gpg --dearmor in the keyring stage, and the house-key locking tooling
+    # uupd/other update paths may want later.
+    "gnupg2",
+    # Fast, light editor for server consoles.
+    "nano",
+]
+
+[tooling]
+# What `ujust` and the sysext UX ride on top of. just comes from the Fedora
+# 44 repo at build time (Hummingbird does not publish it) but stays in the
+# image: users run ujust interactively.
+packages = [
+    "just",
+]
+
+[networking]
+# Wi-Fi on a server still matters (laptops, SBCs, lab machines).
+# Hummingbird already ships NetworkManager-wifi, wpa_supplicant,
+# wireless-regdb, iw and the ModemManager family (factory image of
+# 2026-09-25), so the only drivers left to bake in at build time are the
+# radio firmware, which goes in [hardware] alongside linux-firmware.
+packages = [
+    # Name-server debugging on a server console.
+    "bind-utils",
+    # NFS client for lab machines that serve/mount shared parts.
+    "nfs-utils",
+]
+
+[hardware]
+# The firmware set, following utah's [hardware] (packages/utah.toml#330).
+# The Hummingbird base omits the whole linux-firmware blob, so the name
+# never appears in the Hummingbird repo. Four Intel Wi-Fi firmware slices
+# are not redundant with linux-firmware either -- linux-firmware is a split
+# package whose only Requires is linux-firmware-whence and whose thirteen
+# Recommends cover amd-gpu, amd-microcode, intel-gpu, and realtek-dvb
+# (packages/bluefin.toml#344). Those four instead ship in iwlwifi-*-firmware
+# subpackages:
+#   iwlwifi-dvm-firmware  - older 802.11n-era devices
+#   iwlwifi-mvm-firmware  - Wi-Fi 5 era
+#   iwlwifi-mld-firmware  - Wi-Fi 6E / 7 era
+# So adding linux-firmware alone would still leave common Intel laptops
+# without a working radio: the failure mode utah named against its own
+# Silverblue base is "iwlwifi 0000:03:00.0: Direct firmware load for
+# iwlwifi-6000g2a-6.ucode".
+packages = [
+    "linux-firmware",
+    "iwlwifi-dvm-firmware",
+    "iwlwifi-mvm-firmware",
+    "iwlwifi-mld-firmware",
+    # Marvell libertas Wi-Fi firmware. Not in linux-firmware's weak-deps set.
+    "libertas-usb8388-firmware",
+    # Processor microcode halves, matching utah's [hardware] parity set.
+    "amd-ucode",
+    "microcode_ctl",
+]
+
+[excluded]
+# Packages removed from the base image, matching utah's reasoning: conflicts
+# with image content. Also drops the noise a desktop-centric set would feel
+# wrong for a server.
+packages = [
+    # Pointless on a server (systemd-resolved handles it instead).
+    "NetworkManager-config-connectivity-fedora",
+    # Plymouth never runs; the kernel console is enough.
+    "plymouth",
+    "plymouth-system-theme",
+    "plymouth-theme-spinner",
+]

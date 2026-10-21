@@ -1,0 +1,26 @@
+# k0s worker unit. Inert until the admin creates /etc/default/k0s-worker:
+# the file supplies K0S_WORKER_FLAGS (conventionally
+# '--token-file=/etc/k0s/worker-token', with the token written into
+# /etc/k0s/worker-token by ujust k0s-worker). Its existence also stops
+# k0scontroller.service, so the file is the single switch that turns this
+# node from a controller into a worker joining an existing cluster.
+[Unit]
+Description=k0s - Zero Friction Kubernetes (worker)
+Documentation=https://docs.k0sproject.io
+ConditionFileNotEmpty=/etc/default/k0s-worker
+
+[Service]
+EnvironmentFile=/etc/default/k0s-worker
+ExecStartPre=-/sbin/modprobe br_netfilter
+ExecStartPre=-/sbin/modprobe overlay
+ExecStart=/usr/bin/k0s worker $K0S_WORKER_FLAGS
+KillMode=process
+Restart=always
+RestartSec=5s
+LimitNOFILE=1048576
+LimitCORE=infinity
+LimitNPROC=infinity
+Delegate=yes
+
+[Install]
+WantedBy=multi-user.target

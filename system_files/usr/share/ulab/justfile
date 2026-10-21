@@ -1,0 +1,18 @@
+# /usr/share/ulab/justfile -- master recipe chain for ulab's ujust.
+#
+# The wrapper /usr/bin/ujust points just here. Recipes live in
+# recipes/*.just, imported explicitly below so `ujust --list` presents a
+# single flat namespace (ublue's ujust presentation) and `set
+# allow-duplicate-recipes` keeps overrides stable across image updates.
+#
+# Import order matters: defaults first, then management, then cluster UX.
+
+set allow-duplicate-recipes := true
+set ignore-comments := true
+
+_default: ulab-default
+  @true
+
+import "/usr/share/ulab/recipes/00-default.just"
+import "/usr/share/ulab/recipes/10-sysexts.just"
+import "/usr/share/ulab/recipes/20-kubernetes.just"

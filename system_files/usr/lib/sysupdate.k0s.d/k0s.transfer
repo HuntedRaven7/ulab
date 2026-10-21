@@ -1,0 +1,20 @@
+[Transfer]
+Features=k0s
+Verify=true
+
+[Source]
+Type=url-file
+Path=https://huntedraven7.github.io/ulab/ext/k0s/
+MatchPattern=k0s_@v_%a.raw.zst \
+             k0s_@v_%a.raw.xz \
+             k0s_@v_%a.raw.gz \
+             k0s_@v_%a.raw
+
+[Target]
+Type=regular-file
+Path=/var/lib/extensions.d/
+MatchPattern=k0s_@v_%a.raw.zst \
+             k0s_@v_%a.raw.xz \
+             k0s_@v_%a.raw.gz \
+             k0s_@v_%a.raw
+CurrentSymlink=k0s.raw

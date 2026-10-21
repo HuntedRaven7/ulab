@@ -1,0 +1,28 @@
+# k0s controller unit, following the same declarative role-selection shape
+# as the k3s pair: this node runs as a controller unless the admin creates
+# /etc/default/k0s-worker (see k0s-worker.service). A bare `k0s controller`
+# bootstraps its own configuration; an existing config in
+# /etc/k0s/k0s.yaml is picked up automatically. Controller-mode flags
+# (join setups, data-dir overrides) belong in /etc/default/k0s-controller
+# as K0S_CONTROLLER_FLAGS.
+[Unit]
+Description=k0s - Zero Friction Kubernetes (controller)
+Documentation=https://docs.k0sproject.io
+ConditionPathExists=!/etc/default/k0s-worker
+
+[Service]
+EnvironmentFile=-/etc/default/k0s-controller
+ExecStartPre=-/sbin/modprobe br_netfilter
+ExecStartPre=-/sbin/modprobe overlay
+ExecStart=/usr/bin/k0s controller $K0S_CONTROLLER_FLAGS
+ExecStop=/usr/bin/k0s stop
+KillMode=process
+Restart=always
+RestartSec=5s
+LimitNOFILE=1048576
+LimitCORE=infinity
+LimitNPROC=infinity
+Delegate=yes
+
+[Install]
+WantedBy=multi-user.target

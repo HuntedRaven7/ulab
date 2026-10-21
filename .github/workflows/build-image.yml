@@ -1,0 +1,85 @@
+name: Build image
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE_NAME: ulab
+  BASE_IMAGE: quay.io/hummingbird-community/os-minimal:latest@sha256:5ae51afb8a120e7e7c32a774be23b300dad3dd58ef51086de917e5eb66a91030
+
+jobs:
+  build:
+    name: Build image
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build metadata
+        id: meta
+        env:
+          IMAGE_NAME: ${{ env.IMAGE_NAME }}
+        run: |
+          set -euo pipefail
+          version="$(date -u '+%Y.%m.%d')"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      # The sysext public key is the catalog's trust root; it must be
+      # committed for a build to complete (the keyring stage fails
+      # otherwise -- the fallback error is the user documentation).
+      - name: Verify sysext public key present
+        run: test -s keys/ulab-sysext-public-key.asc
+
+      - name: Build bootc image
+        uses: redhat-actions/buildah-build@v2
+        with:
+          image: ${{ env.IMAGE_NAME }}
+          tags: ${{ steps.meta.outputs.version }}
+          archs: amd64
+          containerfiles: |
+            ./Containerfile
+          build-args: |
+            BASE_IMAGE=${{ env.BASE_IMAGE }}
+            ULAB_VERSION=${{ steps.meta.outputs.version }}
+            GIT_COMMIT=${{ env.commit }}
+
+      # Smoke test: buildah and podman share containers-storage, so the
+      # locally built image is inspectable without any pull.
+      - name: Smoke test image
+        run: |
+          set -euo pipefail
+          image="${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.version }}"
+          podman inspect "$image" >/dev/null
+          title=$(podman image inspect --format \
+            '{{index .Config.Labels "org.opencontainers.image.title"}}' "$image")
+          test -n "$title" && test "$title" = "ulab"
+
+      - name: Push to ghcr.io
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: redhat-actions/push-to-registry@v2
+        with:
+          image: ${{ env.IMAGE_NAME }}
+          tags: |
+            ${{ steps.meta.outputs.version }}
+            sha-${{ github.sha }}
+          registry: ghcr.io/${{ github.repository_owner }}
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Tag latest on main
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          set -euo pipefail
+          podman tag ${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.version }} \
+            ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:latest
+          podman push ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:latest
