@@ -68,20 +68,12 @@ jobs:
 
       - name: Push to ghcr.io
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: redhat-actions/push-to-registry@v3
-        with:
-          image: ${{ env.IMAGE_NAME }}
-          tags: |
-            ${{ steps.meta.outputs.version }}
-            sha-${{ github.sha }}
-          registry: ghcr.io/huntedraven7
-          username: ${{ github.actor }}
-          password: ${{ github.token }}
-
-      - name: Tag latest on main
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           set -euo pipefail
-          podman tag ${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.version }} \
-            ghcr.io/huntedraven7/${{ env.IMAGE_NAME }}:latest
-          podman push ghcr.io/huntedraven7/${{ env.IMAGE_NAME }}:latest
+          echo "${{ github.token }}" | podman login ghcr.io \
+            -u "${{ github.actor }}" --password-stdin
+          for tag in "${{ steps.meta.outputs.version }}" "sha-${{ github.sha }}" "latest"; do
+            podman tag ${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.version }} \
+              ghcr.io/huntedraven7/${{ env.IMAGE_NAME }}:$tag
+            podman push ghcr.io/huntedraven7/${{ env.IMAGE_NAME }}:$tag
+          done
