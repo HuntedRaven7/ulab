@@ -74,7 +74,7 @@ jobs:
           tags: |
             ${{ steps.meta.outputs.version }}
             sha-${{ github.sha }}
-          registry: ghcr.io/${{ github.repository_owner | lower }}
+          registry: ghcr.io/${{ lower(github.repository_owner) }}
           username: ${{ github.actor }}
           password: ${{ github.token }}
 
@@ -83,5 +83,5 @@ jobs:
         run: |
           set -euo pipefail
           podman tag ${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.version }} \
-            ghcr.io/${{ github.repository_owner | lower }}/${{ env.IMAGE_NAME }}:latest
-          podman push ghcr.io/${{ github.repository_owner | lower }}/${{ env.IMAGE_NAME }}:latest
+            ghcr.io/${{ lower(github.repository_owner) }}/${{ env.IMAGE_NAME }}:latest
+          podman push ghcr.io/${{ lower(github.repository_owner) }}/${{ env.IMAGE_NAME }}:latest
