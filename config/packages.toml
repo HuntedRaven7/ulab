@@ -57,6 +57,10 @@ packages = [
     "bind-utils",
     # NFS client for lab machines that serve/mount shared parts.
     "nfs-utils",
+    # Tailscale VPN, for secure mesh networking into the server fleet
+    # from anywhere. Ships in Fedora's main tree, so it resolves from the
+    # same fedora-44 repo as just (no extra third-party repo needed).
+    "tailscale",
 ]
 
 [hardware]
